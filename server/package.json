@@ -20,6 +20,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mediasoup": "^3.19.3",
     "prisma": "^6.15.0",
     "zod": "^4.1.11"
   },
