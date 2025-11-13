@@ -39,3 +39,24 @@ export const createroom=async(req:Request,res:Response)=>{
    }
 
 }
+
+export const getRoomsCreatedByUser = async (req:Request, res:Response) => {
+  try {
+    const userId = (req as any).user.userId;
+
+    const rooms = await prisma.room.findMany({
+      where: {
+        hostId: userId,
+      },
+      include: {
+        participants: true,
+        recordings: true,
+      }
+    });
+
+    return res.json({ success: true, rooms });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to fetch rooms" });
+  }
+};

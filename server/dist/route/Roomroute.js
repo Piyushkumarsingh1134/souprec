@@ -8,4 +8,5 @@ const Roomcontroller_1 = require("../controller/Roomcontroller");
 const middleware_1 = require("../middleware");
 const Room = express_1.default.Router();
 Room.post('/createromm', middleware_1.authenticate, Roomcontroller_1.createroom);
+Room.get('/getRoomsCreatedByUser', middleware_1.authenticate, Roomcontroller_1.getRoomsCreatedByUser);
 exports.default = Room;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, Mic2, Mail, Lock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 
 interface AuthModalProps {
   open: boolean;
@@ -58,6 +59,7 @@ export default function AuthModal({
       // Optional: store token in localStorage
       if (data.token) {
         localStorage.setItem("token", data.token);
+          window.location.href = "/Dashboard";
       }
 
       // Close modal and reset fields

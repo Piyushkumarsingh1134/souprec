@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createroom = void 0;
+exports.getRoomsCreatedByUser = exports.createroom = void 0;
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
 const Validation_1 = require("../Validation");
@@ -34,3 +34,23 @@ const createroom = async (req, res) => {
     }
 };
 exports.createroom = createroom;
+const getRoomsCreatedByUser = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const rooms = await prisma.room.findMany({
+            where: {
+                hostId: userId,
+            },
+            include: {
+                participants: true,
+                recordings: true,
+            }
+        });
+        return res.json({ success: true, rooms });
+    }
+    catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Failed to fetch rooms" });
+    }
+};
+exports.getRoomsCreatedByUser = getRoomsCreatedByUser;
