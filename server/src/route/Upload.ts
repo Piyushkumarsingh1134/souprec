@@ -15,6 +15,8 @@ router.post("/", upload.single("chunk"),authenticate, async (req, res) => {
     const   { recordingId, index } = req.body;
     const userId = (req as any).user.userId;
     const file = req.file;
+    console.log(recordingId);
+    console.log(userId);
 
     if (!file || !userId || index === undefined) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -26,7 +28,7 @@ router.post("/", upload.single("chunk"),authenticate, async (req, res) => {
         const stream = cloudinary.uploader.upload_stream(
           {
             resource_type: "video",
-            folder: "chunks",
+             folder: `users/${userId}/rooms/${recordingId}/chunks`,
             public_id: `${userId}_chunk_${index}`,
           },
           (error, result) => {

@@ -8,13 +8,17 @@ const multer_1 = __importDefault(require("multer"));
 const client_1 = require("@prisma/client");
 const cloudinary_1 = require("../lib/cloudinary");
 const streamifier_1 = __importDefault(require("streamifier"));
+const middleware_1 = require("../middleware");
 const router = express_1.default.Router();
 const prisma = new client_1.PrismaClient();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
-router.post("/", upload.single("chunk"), async (req, res) => {
+router.post("/", upload.single("chunk"), middleware_1.authenticate, async (req, res) => {
     try {
-        const { userId, recordingId, index } = req.body;
+        const { recordingId, index } = req.body;
+        const userId = req.user.userId;
         const file = req.file;
+        console.log(recordingId);
+        console.log(userId);
         if (!file || !userId || index === undefined) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -22,7 +26,7 @@ router.post("/", upload.single("chunk"), async (req, res) => {
         const uploadStream = () => new Promise((resolve, reject) => {
             const stream = cloudinary_1.cloudinary.uploader.upload_stream({
                 resource_type: "video",
-                folder: "chunks",
+                folder: `users/${userId}/rooms/${recordingId}/chunks`,
                 public_id: `${userId}_chunk_${index}`,
             }, (error, result) => {
                 if (error || !result)
