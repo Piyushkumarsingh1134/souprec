@@ -30,12 +30,14 @@ import { PrismaClient } from "@prisma/client";
 import User from "./route/Userroute";
 import Room from "./route/Roomroute";
 import { createServer } from "http";
-import { setupSignaling } from "./signalling"; // 👈 import signaling setup
+import { setupSignaling } from "./signalling"; 
 import Upload from "./route/Upload";
+
+import recordingRouter from "./route/Recording";
 
 const prisma = new PrismaClient();
 const app = express();
-const server = createServer(app); // shared HTTP + WS server
+const server = createServer(app); 
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +48,7 @@ app.get("/", (req: Request, res: Response) => {
 
 app.use("/api/v1/users", User);
 app.use("/api/v1/room", Room);
+app.use("/api/v1/recording", recordingRouter);
 app.use("/api/v1/upload",Upload);
 
 // Initialize WebSocket signaling (shared on same server)

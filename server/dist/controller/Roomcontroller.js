@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRoomsCreatedByUser = exports.createroom = void 0;
+exports.getRoomDetails = exports.getRoomsCreatedByUser = exports.createroom = void 0;
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
 const Validation_1 = require("../Validation");
@@ -54,3 +54,49 @@ const getRoomsCreatedByUser = async (req, res) => {
     }
 };
 exports.getRoomsCreatedByUser = getRoomsCreatedByUser;
+const getRoomDetails = async (req, res) => {
+    try {
+        const { roomCode } = req.query;
+        if (!roomCode) {
+            return res.status(400).json({ error: "room code required" });
+        }
+        // 1. Find the Room using roomCode
+        const room = await prisma.room.findUnique({
+            where: {
+                roomCode: String(roomCode),
+            },
+        });
+        if (!room) {
+            return res.status(404).json({ error: "Room not found" });
+        }
+        // 2. Get all recordings for this room
+        const recordings = await prisma.recording.findMany({
+            where: { roomId: room.id },
+        });
+        if (recordings.length === 0) {
+            return res.status(404).json({ error: "No recordings found" });
+        }
+        // 3. Get all chunks for these recordings (sorted)
+        const chunks = await prisma.chunk.findMany({
+            where: {
+                recordingId: { in: recordings.map((r) => r.id) },
+            },
+            orderBy: { index: "asc" },
+        });
+        // 4. Send Response
+        return res.json({
+            roomCode,
+            recordings: recordings.length,
+            chunks: chunks.map((c) => ({
+                index: c.index,
+                url: c.storageUrl,
+                recordingId: c.recordingId,
+            })),
+        });
+    }
+    catch (error) {
+        console.error("Chunk fetch error:", error);
+        return res.status(500).json({ error: "Failed to fetch chunks" });
+    }
+};
+exports.getRoomDetails = getRoomDetails;

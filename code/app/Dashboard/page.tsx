@@ -112,12 +112,20 @@ export default function Dashboard() {
                 {room.description}
               </p>
 
+             
               <button
-                onClick={() => router.push(`/rooms/${room.id}`)}
-                className="mt-4 w-full px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-              >
-                Open Room
-              </button>
+  onClick={() => router.push(`/rooms/${room.roomCode}`)}
+  className="mt-4 w-full px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+>
+  Open Room
+</button>
+
+      <button
+  onClick={() => router.push(`/rooms/${room.roomCode}/chunks`)}
+  className="w-1/2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+>
+  Get Details
+</button>
             </div>
           ))}
         </div>

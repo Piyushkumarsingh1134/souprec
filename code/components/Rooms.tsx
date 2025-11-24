@@ -14,17 +14,20 @@ type SignalMessage = {
 const ws = new WebSocket("ws://localhost:3000");
 
 export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
-  const [roomId, setRoomId] = useState<string>(roomIdFromUrl || "");
-  const [joined, setJoined] = useState<boolean>(false);
+  const [roomCode, setRoomCode] = useState(roomIdFromUrl || "");
+  const [joined, setJoined] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunkCountRef = useRef<number>(0);
 
-  // ------------------------- SIGNAL HANDLER -------------------------
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingIdRef = useRef<string | null>(null);
+  const chunkCountRef = useRef(0);
+
+  // ---------------- SIGNAL HANDLING ----------------
   useEffect(() => {
     ws.onmessage = async (msg: MessageEvent) => {
       const data: SignalMessage = JSON.parse(msg.data);
@@ -44,123 +47,151 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
     };
   }, []);
 
-  // ------------------------- AUTO JOIN IF URL HAS ROOM -------------------------
+  // Auto join
   useEffect(() => {
-    if (roomIdFromUrl) {
-      joinRoom();
-    }
+    if (roomIdFromUrl) joinRoom();
   }, [roomIdFromUrl]);
 
-  // ------------------------- JOIN ROOM -------------------------
-  async function joinRoom() {
-    if (!roomId) return alert("Enter room ID");
+  // ---------------- CREATE RECORDING ----------------
+  async function createRecording(roomCode: string) {
+    const token = localStorage.getItem("token");
+    if (!token) return console.error("❌ No token found.");
 
-    ws.send(JSON.stringify({ type: "join", roomId }));
+    const res = await fetch("http://localhost:3000/api/v1/recording/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ roomCode }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("❌ Failed to create recording", data);
+      return;
+    }
+
+    console.log("🎬 Recording created:", data.recordingId);
+    recordingIdRef.current = data.recordingId;
+  }
+
+  // ---------------- JOIN ROOM ----------------
+  async function joinRoom() {
+    if (!roomCode) return alert("Enter room code");
+
+    ws.send(JSON.stringify({ type: "join", roomId: roomCode }));
     setJoined(true);
 
-    const localStream = await navigator.mediaDevices.getUserMedia({
+    // Create recording before chunks begin
+    await createRecording(roomCode);
+
+    // Camera
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
+    localStreamRef.current = stream;
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
-    }
+    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-    localStreamRef.current = localStream;
-
+    // Peer connection
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
-
     pcRef.current = pc;
 
-    pc.ontrack = (event: RTCTrackEvent) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+
+    pc.ontrack = (event) => {
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
     };
 
-    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
-
-    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+    pc.onicecandidate = (event) => {
       if (event.candidate) {
-        ws.send(
-          JSON.stringify({
-            type: "signal",
-            payload: { candidate: event.candidate },
-          })
-        );
+        ws.send(JSON.stringify({ type: "signal", payload: { candidate: event.candidate } }));
       }
     };
 
     setTimeout(() => createOffer(pc), 500);
 
-    startRecordingChunks(localStream);
+    // Start recording chunks (loop)
+    startChunkLoop(stream);
   }
 
-  // ------------------------- OFFER CREATION -------------------------
   async function createOffer(pc: RTCPeerConnection) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ type: "signal", payload: { offer } }));
   }
 
-  // ------------------------- CHUNK RECORDING -------------------------
-  function startRecordingChunks(stream: MediaStream) {
-    const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = async (event: BlobEvent) => {
-      if (event.data.size > 0) {
-        await uploadChunk(event.data);
+  // ---------------- CHUNK RECORDING LOOP ----------------
+  function startChunkLoop(stream: MediaStream) {
+    async function recordOneChunk(index: number) {
+      let options = { mimeType: "video/webm;codecs=vp8" };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: "video/webm" };
       }
-    };
 
-    recorder.start(3 * 60 * 1000); // 3 minutes
-  }
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
 
-  // ------------------------- FIXED UPLOAD FUNCTION -------------------------
-  async function uploadChunk(blob: Blob) {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("❌ No token found, cannot upload chunk.");
-      return;
+      console.log(`⏳ Recording chunk #${index} ...`);
+
+      recorder.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          console.log("🎥 Chunk ready:", event.data);
+          await uploadChunk(event.data, index);
+        }
+      };
+
+      recorder.onstop = () => {
+        chunkCountRef.current += 1;
+        setTimeout(() => recordOneChunk(chunkCountRef.current), 200); // next chunk
+      };
+
+      recorder.start();
+      setTimeout(() => recorder.stop(), 3 * 60 * 1000); // stop after 3 min
     }
 
-    const formData = new FormData();
-    formData.append("chunk", blob, `chunk-${chunkCountRef.current}.webm`);
-    formData.append("index", chunkCountRef.current.toString());
-    formData.append("recordingId", ""); // if you don’t have recordingId yet
+    recordOneChunk(0);
+  }
 
-    chunkCountRef.current++;
+  // ---------------- UPLOAD CHUNK ----------------
+  async function uploadChunk(blob: Blob, index: number) {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    if (!recordingIdRef.current) return;
+
+    const formData = new FormData();
+    formData.append("chunk", blob, `chunk-${index}.webm`);
+    formData.append("index", String(index));
+    formData.append("recordingId", recordingIdRef.current);
 
     const res = await fetch("http://localhost:3000/api/v1/upload", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`, // REQUIRED
-      },
+      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
 
     const data = await res.json();
-    console.log("Chunk upload response:", data);
+    console.log("Upload response:", data);
 
-    if (!res.ok) {
-      console.error("❌ Upload failed:", data);
-    }
+    if (!res.ok) console.error("❌ Upload failed:", data);
+    else console.log(`✅ Chunk uploaded: ${index}`);
   }
 
+  // ---------------- UI ----------------
   return (
     <div className="flex flex-col items-center p-4 min-h-screen bg-gradient-to-b from-white to-red-50">
 
-      {/* JOIN INPUT ONLY WHEN MANUAL */}
       {!joined && !roomIdFromUrl && (
         <div className="mt-10 w-full max-w-lg flex gap-2">
           <input
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            placeholder="Enter Room ID"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value)}
+            placeholder="Enter Room Code"
             className="border p-3 rounded-lg flex-1 shadow"
           />
           <button
@@ -172,58 +203,17 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
         </div>
       )}
 
-      {/* VIDEO SECTION */}
       <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-10 mt-10">
-
-        {/* LOCAL VIDEO */}
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-3 text-center">Local</h3>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="
-              w-full 
-              h-[250px]
-              sm:h-[300px] 
-              md:h-[380px] 
-              lg:h-[500px]
-              bg-black 
-              rounded-xl 
-              shadow-xl 
-              object-cover
-            "
-          />
+          <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-[300px] bg-black rounded-xl" />
         </div>
 
-        {/* REMOTE VIDEO */}
         <div className="flex-1">
           <h3 className="text-lg font-semibold mb-3 text-center">Remote</h3>
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="
-              w-full 
-              h-[250px]
-              sm:h-[300px]
-              md:h-[380px]
-              lg:h-[500px]
-              bg-black 
-              rounded-xl 
-              shadow-xl 
-              object-cover
-            "
-          />
+          <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-[300px] bg-black rounded-xl" />
         </div>
       </div>
-
-      {/* FOOTER */}
-      <footer className="mt-16 text-gray-500 text-sm">
-        Powered by <span className="font-semibold text-red-600">Souprec</span>
-      </footer>
-
     </div>
   );
 }

@@ -29,11 +29,12 @@ const client_1 = require("@prisma/client");
 const Userroute_1 = __importDefault(require("./route/Userroute"));
 const Roomroute_1 = __importDefault(require("./route/Roomroute"));
 const http_1 = require("http");
-const signalling_1 = require("./signalling"); // 👈 import signaling setup
+const signalling_1 = require("./signalling");
 const Upload_1 = __importDefault(require("./route/Upload"));
+const Recording_1 = __importDefault(require("./route/Recording"));
 const prisma = new client_1.PrismaClient();
 const app = (0, express_1.default)();
-const server = (0, http_1.createServer)(app); // shared HTTP + WS server
+const server = (0, http_1.createServer)(app);
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.get("/", (req, res) => {
@@ -41,6 +42,7 @@ app.get("/", (req, res) => {
 });
 app.use("/api/v1/users", Userroute_1.default);
 app.use("/api/v1/room", Roomroute_1.default);
+app.use("/api/v1/recording", Recording_1.default);
 app.use("/api/v1/upload", Upload_1.default);
 // Initialize WebSocket signaling (shared on same server)
 (0, signalling_1.setupSignaling)(server);

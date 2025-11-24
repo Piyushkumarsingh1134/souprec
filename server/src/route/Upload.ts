@@ -14,6 +14,7 @@ router.post("/", upload.single("chunk"),authenticate, async (req, res) => {
   try {
     const   { recordingId, index } = req.body;
     const userId = (req as any).user.userId;
+    console.log("logging the recordingId",recordingId);
     const file = req.file;
     console.log(recordingId);
     console.log(userId);
@@ -29,7 +30,8 @@ router.post("/", upload.single("chunk"),authenticate, async (req, res) => {
           {
             resource_type: "video",
              folder: `users/${userId}/rooms/${recordingId}/chunks`,
-            public_id: `${userId}_chunk_${index}`,
+            public_id: `${recordingId}-chunk-${index}`,
+            overwrite: true, 
           },
           (error, result) => {
             if (error || !result) reject(error);
