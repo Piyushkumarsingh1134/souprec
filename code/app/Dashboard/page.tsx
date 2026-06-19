@@ -24,8 +24,9 @@ export default function Dashboard() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
     const res = await fetch(
-      "http://localhost:3000/api/v1/room/getRoomsCreatedByUser",
+      `${API_BASE_URL}/room/getRoomsCreatedByUser`,
       {
         headers: { Authorization: `Bearer ${token}` },
       }

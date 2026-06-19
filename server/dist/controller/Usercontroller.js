@@ -70,9 +70,11 @@ const signup = async (req, res) => {
                 passwordHash: hashedPassword,
             },
         });
+        const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1d" });
         return res.status(200).json({
             message: "User created successfully",
             user,
+            token,
         });
     }
     catch (e) {

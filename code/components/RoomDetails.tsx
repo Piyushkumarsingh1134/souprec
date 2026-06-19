@@ -19,8 +19,9 @@ export default function RoomsDetails({ roomIdFromUrl }: { roomIdFromUrl: string 
       try {
         const token = localStorage.getItem("token");
 
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
         const res = await fetch(
-          `http://localhost:3000/api/v1/room/getRoomDetails?roomCode=${roomIdFromUrl}`,
+          `${API_BASE_URL}/room/getRoomDetails?roomCode=${roomIdFromUrl}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }

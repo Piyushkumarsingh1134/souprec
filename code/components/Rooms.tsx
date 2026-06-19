@@ -11,7 +11,11 @@ type SignalMessage = {
   candidate?: RTCIceCandidateInit;
 };
 
-const ws = new WebSocket("ws://localhost:3000");
+const getWebSocketUrl = () => {
+  return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3000";
+};
+
+const ws = typeof window !== "undefined" ? new WebSocket(getWebSocketUrl()) : null;
 
 export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
   const [roomCode, setRoomCode] = useState(roomIdFromUrl || "");
@@ -29,6 +33,7 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
 
   // ---------------- SIGNAL HANDLING ----------------
   useEffect(() => {
+    if (!ws) return;
     ws.onmessage = async (msg: MessageEvent) => {
       const data: SignalMessage = JSON.parse(msg.data);
       const pc = pcRef.current;
@@ -57,7 +62,8 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
     const token = localStorage.getItem("token");
     if (!token) return console.error("❌ No token found.");
 
-    const res = await fetch("http://localhost:3000/api/v1/recording/start", {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
+    const res = await fetch(`${API_BASE_URL}/recording/start`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -81,7 +87,7 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
   async function joinRoom() {
     if (!roomCode) return alert("Enter room code");
 
-    ws.send(JSON.stringify({ type: "join", roomId: roomCode }));
+    ws?.send(JSON.stringify({ type: "join", roomId: roomCode }));
     setJoined(true);
 
     // Create recording before chunks begin
@@ -110,7 +116,7 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        ws.send(JSON.stringify({ type: "signal", payload: { candidate: event.candidate } }));
+        ws?.send(JSON.stringify({ type: "signal", payload: { candidate: event.candidate } }));
       }
     };
 
@@ -123,7 +129,7 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
   async function createOffer(pc: RTCPeerConnection) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    ws.send(JSON.stringify({ type: "signal", payload: { offer } }));
+    ws?.send(JSON.stringify({ type: "signal", payload: { offer } }));
   }
 
   // ---------------- CHUNK RECORDING LOOP ----------------
@@ -169,7 +175,8 @@ export default function Rooms({ roomIdFromUrl }: { roomIdFromUrl?: string }) {
     formData.append("index", String(index));
     formData.append("recordingId", recordingIdRef.current);
 
-    const res = await fetch("http://localhost:3000/api/v1/upload", {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
+    const res = await fetch(`${API_BASE_URL}/upload`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,

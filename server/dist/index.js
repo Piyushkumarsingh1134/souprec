@@ -46,6 +46,7 @@ app.use("/api/v1/recording", Recording_1.default);
 app.use("/api/v1/upload", Upload_1.default);
 // Initialize WebSocket signaling (shared on same server)
 (0, signalling_1.setupSignaling)(server);
-server.listen(3000, () => {
-    console.log("✅ Server running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
 });

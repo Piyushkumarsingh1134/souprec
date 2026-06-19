@@ -10,7 +10,8 @@ export function CreateRoomModal({ open, onClose, onCreated }: any) {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const API_URL = "http://localhost:3000/api/v1/room/createromm";
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
+  const API_URL = `${API_BASE_URL}/room/createromm`;
 
   async function submitRoom() {
     const token = localStorage.getItem("token");
